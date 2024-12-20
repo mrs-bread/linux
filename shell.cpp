@@ -22,7 +22,7 @@ void printEnvironmentVariable(const string& varName);
 void executeBinary(const string& command);
 void handleSIGHUP(int signum);
 bool isBootDisk(const string& device);
-
+void displayHistory(const vector<string>& history);
 int main() {
     vector<string> history;
     loadHistory(history);
@@ -49,6 +49,12 @@ int main() {
     return 0;
 }
 
+void displayHistory(const vector<string>& history) {
+    for (size_t i = 0; i < history.size(); ++i) {
+        cout << i + 1 << ": " << history[i] << endl;
+    }
+}
+
 void saveHistory(const vector<string>& history) {
     ofstream file("shell_history.txt");
     for (const auto& cmd : history) {
@@ -64,8 +70,10 @@ void loadHistory(vector<string>& history) {
     }
 }
 
-void executeCommand(const string& command) {
-    if (command.substr(0, 5) == "echo ") {
+void executeCommand(const string& command, const vector<string>& history) {
+    if (command == "\\h") {
+        displayHistory(history);
+    } else if (command.substr(0, 5) == "echo ") {
         echoCommand(command.substr(5));
     } else if (command.substr(0, 3) == "\\e ") {
         printEnvironmentVariable(command.substr(3));
@@ -73,11 +81,7 @@ void executeCommand(const string& command) {
         string device = command.substr(3);
         if (isBootDisk(device)) {
             cout << device << " is a boot disk" << endl;
-        } else {
-            cout << device << " is not a boot disk" << endl;
-        }
-    } else if (command[0] == '/') {
-        // Если команда начинается с '/', считаем это полным путем к бинарному файлу
+        } else if (command[0] == '/') {
         executeBinary(command);
     } else {
         // Выполнение базовых команд Linux
