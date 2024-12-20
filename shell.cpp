@@ -16,13 +16,14 @@ using namespace std;
 // Объявления функций
 void saveHistory(const vector<string>& history);
 void loadHistory(vector<string>& history);
-void executeCommand(const string& command);
+void executeCommand(const string& command, const vector<string>& history);
 void echoCommand(const string& args);
 void printEnvironmentVariable(const string& varName);
 void executeBinary(const string& command);
 void handleSIGHUP(int signum);
 bool isBootDisk(const string& device);
 void displayHistory(const vector<string>& history);
+
 int main() {
     vector<string> history;
     loadHistory(history);
@@ -42,17 +43,11 @@ int main() {
         }
 
         history.push_back(input);
-        executeCommand(input);
+        executeCommand(input, history);
     }
 
     saveHistory(history);
     return 0;
-}
-
-void displayHistory(const vector<string>& history) {
-    for (size_t i = 0; i < history.size(); ++i) {
-        cout << i + 1 << ": " << history[i] << endl;
-    }
 }
 
 void saveHistory(const vector<string>& history) {
@@ -71,36 +66,60 @@ void loadHistory(vector<string>& history) {
 }
 
 void executeCommand(const string& command, const vector<string>& history) {
-   if (command == "\\h") {
-        displayHistory(history);
-    } else if (command.substr(0, 5) == "echo ") {
-        echoCommand(command.substr(5));
-    } else if (command.substr(0, 3) == "\\e ") {
-        printEnvironmentVariable(command.substr(3));
-    } else if (command.substr(0, 3) == "\\l ") {
-        string device = command.substr(3);
-        if (isBootDisk(device)) {
-            cout << device << " is a boot disk" << endl;
-        } else {
-            cout << device << " is not a boot disk" << endl;
-        }
+    if (command.empty() || command.find_first_not_of(" \t") == string::npos) {
+        cout << "Error: Empty command" << endl;
+        return;
     }
-    else if (command[0] == '/') {
+
+    vector<string> args;
+    istringstream iss(command);
+    string arg;
+    while (iss >> arg) {
+        args.push_back(arg);
+    }
+
+    if (args.empty()) {
+        return;
+    }
+
+    if (args[0] == "\\h") {
+        displayHistory(history);
+    } else if (args[0] == "echo") {
+        echoCommand(command.substr(5));
+    } else if (args[0] == "\\e" && args.size() > 1) {
+        printEnvironmentVariable(args[1]);
+    } else if (args[0] == "\\l" && args.size() > 1) {
+        if (isBootDisk(args[1])) {
+            cout << args[1] << " is a boot disk" << endl;
+        } else {
+            cout << args[1] << " is not a boot disk" << endl;
+        }
+    } else if (args[0][0] == '/') {
         executeBinary(command);
     } else {
         // Выполнение базовых команд Linux
         pid_t pid = fork();
         if (pid == 0) {
             // Дочерний процесс
-            execlp(command.c_str(), command.c_str(), NULL);
-            cerr << "Command not found: " << command << endl;
+            vector<char*> c_args;
+            for (const auto& arg : args) {
+                c_args.push_back(const_cast<char*>(arg.c_str()));
+            }
+            c_args.push_back(nullptr);
+
+            execvp(args[0].c_str(), c_args.data());
+            // Если execvp вернулся, значит произошла ошибка
+            cerr << "Error: Command not found or could not be executed: " << args[0] << endl;
             exit(1);
         } else if (pid > 0) {
             // Родительский процесс
             int status;
             waitpid(pid, &status, 0);
+            if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+                cout << "Command exited with non-zero status: " << WEXITSTATUS(status) << endl;
+            }
         } else {
-            cerr << "Fork failed" << endl;
+            cerr << "Error: Fork failed" << endl;
         }
     }
 }
@@ -120,7 +139,7 @@ void printEnvironmentVariable(const string& varName) {
 
 void executeBinary(const string& command) {
     vector<string> args;
-    stringstream ss(command);
+    istringstream ss(command);
     string arg;
     while (ss >> arg) {
         args.push_back(arg);
@@ -169,4 +188,10 @@ bool isBootDisk(const string& device) {
 
     // Проверяем сигнатуру 0x55AA в конце MBR
     return (buffer[510] == 0x55 && buffer[511] == 0xAA);
+}
+
+void displayHistory(const vector<string>& history) {
+    for (size_t i = 0; i < history.size(); ++i) {
+        cout << i + 1 << ": " << history[i] << endl;
+    }
 }
