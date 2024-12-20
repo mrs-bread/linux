@@ -71,7 +71,7 @@ void loadHistory(vector<string>& history) {
 }
 
 void executeCommand(const string& command, const vector<string>& history) {
-    if (command == "\\h") {
+   if (command == "\\h") {
         displayHistory(history);
     } else if (command.substr(0, 5) == "echo ") {
         echoCommand(command.substr(5));
@@ -81,7 +81,11 @@ void executeCommand(const string& command, const vector<string>& history) {
         string device = command.substr(3);
         if (isBootDisk(device)) {
             cout << device << " is a boot disk" << endl;
-        } else if (command[0] == '/') {
+        } else {
+            cout << device << " is not a boot disk" << endl;
+        }
+    }
+    else if (command[0] == '/') {
         executeBinary(command);
     } else {
         // Выполнение базовых команд Linux
